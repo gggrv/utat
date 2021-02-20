@@ -324,8 +324,8 @@ class shablon( object ):
                 ltr = ltrs[iloc]
                 line.append( ltr )
                 # line is filled
-                residue = len(ltrs)%STEP
-                if len(line)==MAX_FILL or iloc>=len(ltrs)-residue:
+                residue = len(ltrs)%MAX_FILL
+                if len(line)==MAX_FILL:
                     #print( len(ltrs), len(ltrs)%STEP )
                     lines.append( ' '.join(line) )
                     line = []
@@ -340,6 +340,10 @@ class shablon( object ):
                     prev_ltrs = ltrs[(iloc+1)-(STEP-1):iloc+1]
                     for pl in prev_ltrs[::-1]:
                         ltrs.insert( iloc+1, pl )
+                elif iloc==len(ltrs)-residue:
+                    lines.append( ' '.join(line) )
+                elif iloc>=len(ltrs)-residue:
+                    lines[-1]=' '.join(line)
                     
                 iloc += 1
                 
@@ -570,12 +574,12 @@ class shablon( object ):
                 ['sym main','sym main','sym solo'] )
         if 'CCV+C' in packs:
             render_text( 'CCV_C', packs['CCV+C'],
-                ['sym solo','sym main','sym solo']*self.MAX_PHONEMES \
+                ['sym solo','sym main','sym main']*self.MAX_PHONEMES \
                 +['sym solo'],
                 )
         if 'CCVb+C' in packs:
             render_text( 'CCV_C', packs['CCVb+C'],
-                ['sym solo','sym main','sym solo']*self.MAX_PHONEMES \
+                ['sym solo','sym main','sym main']*self.MAX_PHONEMES \
                 +['sym solo'],
                 )
             
@@ -595,4 +599,4 @@ if __name__ == '__main__':
     autorun()
     
 #---------------------------------------------------------------------------+++
-# конец 2021.02.15 → 2021.02.15
+# конец 2021.02.15 → 2021.02.20
