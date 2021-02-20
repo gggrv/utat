@@ -41,7 +41,7 @@ def appef( path, text ):
 class shablon( object ):
     
     # maximim amount of phonemes that human should pronounce in one breath
-    MAX_PHONEMES = 7
+    MAX_PHONEMES = 6
     
     def __init__( self,
                   *args, **kwargs ):
@@ -367,6 +367,28 @@ class shablon( object ):
             savef( cpath, '\n'.join(clines) )
             savef( vpath, '\n'.join(vlines) )
             savef( 'stupid_C+V.txt', '\n'.join(mlines) )
+            
+        def merge_c_with_ccv( cpath, ccvpath, b ):
+            # embeds "-а" into "・б"
+            ccvlines = readf(ccvpath).split('\n')
+            clines = readf(cpath).split('\n')
+            
+            cloc = 0
+            for ccvloc in range( len(ccvlines) ):
+                # all clines are pasted
+                if cloc==len(clines): break
+            
+                # fit cline here
+                ccvlines[ccvloc] = ccvlines[ccvloc]+clines[cloc][4:]
+                cloc+=1
+            mlines = ccvlines[:cloc]
+            clines = clines[cloc:]
+            ccvlines = ccvlines[cloc:]
+                
+            savef( cpath, '\n'.join(clines) )
+            savef( ccvpath, '\n'.join(ccvlines) )
+            if b: savef( 'stupid_CCVb+C.txt', '\n'.join(mlines) )
+            else: savef( 'stupid_CCV+C.txt', '\n'.join(mlines) )
         
         """-----------------------------------------------------------------+++
         Actual code.
@@ -397,6 +419,12 @@ class shablon( object ):
         # merge C with V
         if 'C' in packs and 'V' in packs:
             merge_c_with_v( packs['C'],packs['V'] )
+        
+        # merge C with CCV or CCVb
+        if 'C' in packs and 'CCV' in packs:
+            merge_c_with_ccv( packs['C'],packs['CCV'], b=False )
+        if 'C' in packs and 'CCVb' in packs:
+            merge_c_with_ccv( packs['C'],packs['CCVb'], b=True )
             
     def render_reclist( self ):
         """-----------------------------------------------------------------+++
@@ -413,14 +441,70 @@ class shablon( object ):
             if pd.isna(text): text=iloc
             return text
         
-        def render_text( path, labels ):
-            lines = readf(path).split('\n')
+        def charatype( iloc ):
+            mask = DATA['iloc']==int(iloc)
+            row = DATA[mask].iloc[0]
+            if row['vow']==1: return 'V'
+            if row['con']==1: return 'C'
+            if row['spe']==1: return 'S'
+        
+        def render_text( pattern, path, labels ):
+            WARNING_LOOPS = ['CCVC','CV','CCV']
+            pattern_cache=pattern
+            pattern = pattern.replace('_','')
+            
+            # get lines
+            textwall = readf(path)
+            if len(textwall)==0: return None
+            lines = textwall.split('\n')
+            
             for lineiloc, line in enumerate(lines):
+                # get letters
                 ltrs = line.split(' ')
                 texts = []
                 
                 labloc = 0
+                # iterate through letters and get their replacements
                 for ltrloc, ltr in enumerate(ltrs):
+                    # what end of pattern am i on?
+                    if ltrloc==0 and pattern in WARNING_LOOPS:
+                        # check with pattern
+                        # get charatypes of current and next ltrs
+                        cts = []
+                        for i in range(len(pattern)):
+                            if ltrloc+i>=len(ltrs): break
+                            cts.append( charatype(ltrs[ltrloc+i]) )
+                        # compare them
+                        if not cts==list(pattern[:len(cts)]):
+                            # pattern broke because of de-looping
+                            # there are only 2 letter, fix is easy
+                            if len(pattern)==2 and not pattern_cache=='C_V':
+                                labloc=len(labels)-1
+                            elif len(pattern)==3:
+                                current = ''.join(cts)
+                                prefix = pattern[:2]
+                                index = current.find(prefix)
+                                if type(index)==int and index>=0:
+                                    labloc=index+1
+                                elif type(index)==int and index<0:
+                                    labloc=1
+                                else: raise ValueError('wrong pattern')
+                            elif pattern=='CCVC':
+                                current = ''.join(cts[:-1])
+                                if current=='CCV': labloc=0
+                                elif current=='CVC': labloc=1
+                                elif current=='VCC': labloc=2
+                                else: raise ValueError('wrong pattern')
+                    
+                    if pattern_cache=='CCV_C':
+                        # reached last letter
+                        if ltrloc==len(ltrs)-1:
+                            texts.append( '_' ) #  add splitter
+                            labloc=len(labels)-1
+                    if pattern_cache=='C_V':
+                        # reached last letter
+                        if ltrloc==len(ltrs)-1:
+                            texts.append( '_' ) #  add splitter
                     col = labels[labloc]
                     labloc+=1
                     if labloc==len(labels): labloc=0
@@ -432,7 +516,6 @@ class shablon( object ):
         def render_single( path ):
             # removes empty lines from a file
             lines = readf(path).split('\n')
-            
             lineiloc = 0
             while lineiloc<len(lines):
                 line = lines[lineiloc]
@@ -457,29 +540,44 @@ class shablon( object ):
             packs.setdefault( PACKNAME, f )
         
         if 'CV' in packs:
-            render_text( packs['CV'], ['sym main','sym main'] )
+            render_text( 'CV', packs['CV'], ['sym main','sym main'] )
         if 'CVb' in packs:
-            render_text( packs['CVb'], ['sym main','sym main'] )
+            render_text( 'CV', packs['CVb'], ['sym main','sym main'] )
         if 'C' in packs:
-            render_text( packs['C'], ['sym solo','sym solo'] )
+            render_text( 'C', packs['C'], ['sym solo','sym solo'] )
         if 'VC' in packs:
-            render_text( packs['VC'], ['sym solo','sym solo'] )
+            render_text( 'VC', packs['VC'], ['sym solo','sym solo'] )
         if 'VCb' in packs:
-            render_text( packs['VCb'], ['sym solo','sym solo'] )
+            render_text( 'VC', packs['VCb'], ['sym solo','sym solo'] )
         if 'VV' in packs:
-            render_text( packs['VV'], ['sym main','sym main'] )
+            render_text( 'VV', packs['VV'], ['sym main','sym main'] )
         if 'VVb' in packs:
-            render_text( packs['VVb'], ['sym main','sym main'] )
+            render_text( 'VV', packs['VVb'], ['sym main','sym main'] )
         if 'CCV' in packs:
-            render_text( packs['CCV'], ['sym solo','sym main','sym main'] )
+            render_text( 'CCV', packs['CCV'],
+                ['sym solo','sym main','sym main'] )
         if 'CCVb' in packs:
-            render_text( packs['CCVb'], ['sym solo','sym main','sym main'] )
+            render_text( 'CCV', packs['CCVb'],
+                ['sym solo','sym main','sym main'] )
         if 'CyV' in packs:
-            render_text( packs['CyV'], ['sym solo','sym solo','sym main'] )
+            render_text( 'CCV', packs['CyV'],
+                ['sym solo','sym solo','sym main'] )
         if 'CyVb' in packs:
-            render_text( packs['CyVb'], ['sym solo','sym solo','sym main'] )
+            render_text( 'CCV', packs['CyVb'],
+                ['sym solo','sym solo','sym main'] )
         if 'C+V' in packs:
-            render_text( packs['C+V'], ['sym main','sym main','sym solo'] )
+            render_text( 'C_V', packs['C+V'],
+                ['sym main','sym main','sym solo'] )
+        if 'CCV+C' in packs:
+            render_text( 'CCV_C', packs['CCV+C'],
+                ['sym solo','sym main','sym solo']*self.MAX_PHONEMES \
+                +['sym solo'],
+                )
+        if 'CCVb+C' in packs:
+            render_text( 'CCV_C', packs['CCVb+C'],
+                ['sym solo','sym main','sym solo']*self.MAX_PHONEMES \
+                +['sym solo'],
+                )
             
         for k in packs: render_single(packs[k])
         
